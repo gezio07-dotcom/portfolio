@@ -1,0 +1,515 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>Todo リスト — Portfolio Demo</title>
+<meta name="description" content="ドラッグ&ドロップ対応のTodoリスト。カテゴリ分け、期限設定、フィルタリング機能搭載。">
+<style>
+  :root{--bg:#f8f9fa;--panel:#fff;--accent:#7fff00;--accent-dark:#5cc700;--text:#1a1a1a;--border:#e0e0e0;--header:#071028}
+  html,body{min-height:100%;margin:0;background:var(--bg);font-family:system-ui,-apple-system,"Noto Sans JP",Meiryo,sans-serif;color:var(--text)}
+  
+  .back-link{
+    position:fixed;top:12px;left:12px;
+    color:var(--header);font-size:0.8rem;font-weight:600;
+    text-decoration:none;z-index:10;
+    padding:8px 12px;background:var(--panel);border-radius:8px;
+    border:1px solid var(--border);
+    display:flex;align-items:center;gap:6px;
+    box-shadow:0 2px 8px rgba(0,0,0,0.08);
+  }
+  .back-link svg{width:16px;height:16px}
+  .back-link:hover{background:var(--accent);border-color:var(--accent)}
+  
+  .wrap{max-width:600px;margin:0 auto;padding:60px 16px 32px}
+  
+  header{margin-bottom:24px;text-align:center}
+  h1{font-size:1.8rem;margin:0 0 8px 0;font-weight:700}
+  .subtitle{color:#666;font-size:0.9rem}
+  
+  /* 入力エリア */
+  .input-area{
+    background:var(--panel);border-radius:12px;padding:20px;
+    border:1px solid var(--border);margin-bottom:24px;
+    box-shadow:0 4px 16px rgba(0,0,0,0.06);
+  }
+  .input-row{display:flex;gap:8px;margin-bottom:12px}
+  .input-main{
+    flex:1;padding:12px 16px;border:1px solid var(--border);border-radius:8px;
+    font-size:1rem;transition:border-color 0.2s;
+  }
+  .input-main:focus{outline:none;border-color:var(--accent-dark)}
+  
+  .input-options{display:flex;gap:8px;flex-wrap:wrap}
+  .input-options select,.input-options input[type="date"]{
+    padding:8px 12px;border:1px solid var(--border);border-radius:6px;
+    font-size:0.85rem;background:var(--bg);
+  }
+  .input-options select:focus,.input-options input:focus{outline:none;border-color:var(--accent-dark)}
+  
+  .btn{
+    padding:10px 20px;border-radius:8px;font-weight:600;cursor:pointer;
+    border:none;font-size:0.9rem;transition:all 0.2s;
+    display:flex;align-items:center;gap:6px;
+  }
+  .btn svg{width:18px;height:18px}
+  .btn-primary{background:var(--accent);color:var(--header)}
+  .btn-primary:hover{background:var(--accent-dark)}
+  .btn-icon{padding:10px;background:transparent;border:1px solid var(--border)}
+  .btn-icon:hover{background:var(--bg)}
+  
+  /* フィルター */
+  .filters{
+    display:flex;gap:8px;margin-bottom:16px;flex-wrap:wrap;
+  }
+  .filter-btn{
+    padding:6px 14px;border-radius:20px;font-size:0.8rem;font-weight:500;
+    border:1px solid var(--border);background:var(--panel);cursor:pointer;
+    transition:all 0.2s;
+  }
+  .filter-btn:hover{background:var(--bg)}
+  .filter-btn.active{background:var(--header);color:#fff;border-color:var(--header)}
+  
+  /* タスクリスト */
+  .task-list{list-style:none;margin:0;padding:0}
+  
+  .task-item{
+    background:var(--panel);border-radius:10px;padding:16px;
+    border:1px solid var(--border);margin-bottom:10px;
+    display:flex;align-items:flex-start;gap:12px;
+    transition:all 0.2s;cursor:grab;
+    box-shadow:0 2px 8px rgba(0,0,0,0.04);
+  }
+  .task-item:hover{box-shadow:0 4px 12px rgba(0,0,0,0.08)}
+  .task-item.dragging{opacity:0.5;transform:rotate(2deg)}
+  .task-item.completed{opacity:0.6}
+  .task-item.completed .task-title{text-decoration:line-through;color:#999}
+  
+  .task-checkbox{
+    width:22px;height:22px;border-radius:50%;border:2px solid var(--border);
+    cursor:pointer;flex-shrink:0;display:flex;align-items:center;justify-content:center;
+    transition:all 0.2s;margin-top:2px;
+  }
+  .task-checkbox:hover{border-color:var(--accent-dark)}
+  .task-checkbox.checked{background:var(--accent);border-color:var(--accent)}
+  .task-checkbox.checked svg{display:block}
+  .task-checkbox svg{display:none;width:14px;height:14px;stroke:var(--header);stroke-width:3}
+  
+  .task-content{flex:1;min-width:0}
+  .task-title{font-size:1rem;font-weight:500;margin-bottom:6px;word-break:break-word}
+  .task-meta{display:flex;gap:10px;flex-wrap:wrap;font-size:0.75rem;color:#888}
+  .task-meta span{display:flex;align-items:center;gap:4px}
+  .task-meta svg{width:12px;height:12px}
+  
+  .task-category{
+    padding:2px 8px;border-radius:4px;font-size:0.7rem;font-weight:600;
+  }
+  .category-仕事{background:#e3f2fd;color:#1565c0}
+  .category-個人{background:#fff3e0;color:#e65100}
+  .category-買い物{background:#e8f5e9;color:#2e7d32}
+  .category-その他{background:#f3e5f5;color:#7b1fa2}
+  
+  .task-due{color:#c62828}
+  .task-due.overdue{color:#c62828;font-weight:600}
+  .task-due.today{color:#f57c00;font-weight:600}
+  
+  .task-actions{display:flex;gap:4px;flex-shrink:0}
+  .task-actions button{
+    width:28px;height:28px;border-radius:6px;border:none;
+    background:transparent;cursor:pointer;display:flex;
+    align-items:center;justify-content:center;transition:background 0.2s;
+  }
+  .task-actions button:hover{background:var(--bg)}
+  .task-actions button svg{width:16px;height:16px;stroke:#888}
+  .task-actions button.delete:hover svg{stroke:#c62828}
+  
+  /* 空状態 */
+  .empty-state{
+    text-align:center;padding:48px 20px;color:#999;
+  }
+  .empty-state svg{width:64px;height:64px;stroke:#ddd;margin-bottom:16px}
+  .empty-state p{font-size:0.95rem}
+  
+  /* 統計 */
+  .stats{
+    display:flex;gap:16px;justify-content:center;margin-bottom:24px;
+  }
+  .stat-item{text-align:center}
+  .stat-value{font-size:1.5rem;font-weight:700;color:var(--header)}
+  .stat-label{font-size:0.75rem;color:#888}
+  
+  /* 設計ログ */
+  .design-log{
+    margin-top:32px;padding:20px;background:var(--panel);border-radius:12px;
+    border:1px solid var(--border);display:none;
+  }
+  .design-log.show{display:block}
+  .design-log h3{font-size:0.9rem;color:var(--header);margin:0 0 12px 0}
+  .design-log-section{margin-bottom:16px}
+  .design-log-section:last-child{margin-bottom:0}
+  .design-log-title{font-size:0.8rem;color:#666;margin-bottom:6px;font-weight:600}
+  .design-log-content{font-size:0.85rem;line-height:1.7}
+  .design-log-content ul{margin:8px 0 0 0;padding-left:20px}
+  .design-log-content li{margin-bottom:4px}
+</style>
+</head>
+<body>
+<a href="index.html" class="back-link">
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 12H5M12 19l-7-7 7-7"/></svg>
+  戻る
+</a>
+
+<div class="wrap">
+  <header>
+    <h1>Todo リスト</h1>
+    <p class="subtitle">タスクを整理して、生産性を向上させよう</p>
+  </header>
+  
+  <div class="stats">
+    <div class="stat-item">
+      <div class="stat-value" id="stat-total">0</div>
+      <div class="stat-label">全タスク</div>
+    </div>
+    <div class="stat-item">
+      <div class="stat-value" id="stat-completed">0</div>
+      <div class="stat-label">完了</div>
+    </div>
+    <div class="stat-item">
+      <div class="stat-value" id="stat-remaining">0</div>
+      <div class="stat-label">残り</div>
+    </div>
+  </div>
+  
+  <div class="input-area">
+    <div class="input-row">
+      <input type="text" class="input-main" id="task-input" placeholder="新しいタスクを入力...">
+      <button class="btn btn-primary" id="add-btn">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+        追加
+      </button>
+    </div>
+    <div class="input-options">
+      <select id="category-select">
+        <option value="仕事">仕事</option>
+        <option value="個人">個人</option>
+        <option value="買い物">買い物</option>
+        <option value="その他">その他</option>
+      </select>
+      <input type="date" id="due-date">
+    </div>
+  </div>
+  
+  <div class="filters">
+    <button class="filter-btn active" data-filter="all">すべて</button>
+    <button class="filter-btn" data-filter="active">未完了</button>
+    <button class="filter-btn" data-filter="completed">完了</button>
+    <button class="filter-btn" data-filter="仕事">仕事</button>
+    <button class="filter-btn" data-filter="個人">個人</button>
+  </div>
+  
+  <ul class="task-list" id="task-list"></ul>
+  
+  <button class="btn" style="margin-top:24px;width:100%;justify-content:center;background:var(--panel);border:1px solid var(--border)" id="toggle-log">設計ログを表示</button>
+  
+  <div class="design-log" id="design-log">
+    <h3>DESIGN LOG</h3>
+    
+    <div class="design-log-section">
+      <div class="design-log-title">目的</div>
+      <div class="design-log-content">
+        実用的なTodoアプリのデモ。CRUD操作、フィルタリング、
+        ドラッグ&ドロップ、データ永続化の実装力を示す。
+      </div>
+    </div>
+    
+    <div class="design-log-section">
+      <div class="design-log-title">制約</div>
+      <div class="design-log-content">
+        <ul>
+          <li>外部ライブラリ不使用（Vanilla JS のみ）</li>
+          <li>サーバーサイド不要（localStorage で完結）</li>
+          <li>モバイルファースト設計</li>
+        </ul>
+      </div>
+    </div>
+    
+    <div class="design-log-section">
+      <div class="design-log-title">設計方針</div>
+      <div class="design-log-content">
+        <ul>
+          <li><strong>シンプルなUI</strong>: 1画面で完結、迷わない操作</li>
+          <li><strong>カテゴリ分け</strong>: 色分けで視覚的に識別</li>
+          <li><strong>期限管理</strong>: 今日・期限切れを強調表示</li>
+          <li><strong>フィルタリング</strong>: 状態・カテゴリで絞り込み</li>
+          <li><strong>ドラッグ&ドロップ</strong>: 並び替えで優先度管理</li>
+          <li><strong>統計表示</strong>: 進捗を数値で可視化</li>
+        </ul>
+      </div>
+    </div>
+    
+    <div class="design-log-section">
+      <div class="design-log-title">次に改善するなら</div>
+      <div class="design-log-content">
+        <ul>
+          <li>サブタスク機能</li>
+          <li>リマインダー通知</li>
+          <li>繰り返しタスク</li>
+          <li>複数リスト対応</li>
+          <li>クラウド同期</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+/* ----- 設定 ----- */
+const STORAGE_KEY = 'todo_app_data';
+
+/* ----- 状態 ----- */
+let tasks = [];
+let currentFilter = 'all';
+let draggedItem = null;
+
+/* ----- 初期化 ----- */
+function init(){
+  loadData();
+  renderTasks();
+  updateStats();
+  setupEventListeners();
+}
+
+/* ----- データ管理 ----- */
+function loadData(){
+  try {
+    const saved = localStorage.getItem(STORAGE_KEY);
+    if(saved) tasks = JSON.parse(saved);
+  } catch(e){
+    console.error('データ読み込みエラー:', e);
+  }
+}
+
+function saveData(){
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(tasks));
+}
+
+function addTask(title, category, dueDate){
+  const task = {
+    id: Date.now(),
+    title,
+    category,
+    dueDate,
+    completed: false,
+    createdAt: new Date().toISOString()
+  };
+  tasks.unshift(task);
+  saveData();
+  renderTasks();
+  updateStats();
+}
+
+function toggleTask(id){
+  const task = tasks.find(t => t.id === id);
+  if(task){
+    task.completed = !task.completed;
+    saveData();
+    renderTasks();
+    updateStats();
+  }
+}
+
+function deleteTask(id){
+  tasks = tasks.filter(t => t.id !== id);
+  saveData();
+  renderTasks();
+  updateStats();
+}
+
+/* ----- 描画 ----- */
+function renderTasks(){
+  const list = document.getElementById('task-list');
+  const filtered = filterTasks(tasks, currentFilter);
+  
+  if(filtered.length === 0){
+    list.innerHTML = `
+      <div class="empty-state">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+          <path d="M9 5H7a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2h-2"/>
+          <rect x="9" y="3" width="6" height="4" rx="2"/>
+          <path d="M9 14l2 2 4-4"/>
+        </svg>
+        <p>タスクがありません</p>
+      </div>
+    `;
+    return;
+  }
+  
+  list.innerHTML = filtered.map(task => {
+    const dueStatus = getDueStatus(task.dueDate);
+    return `
+      <li class="task-item ${task.completed ? 'completed' : ''}" data-id="${task.id}" draggable="true">
+        <div class="task-checkbox ${task.completed ? 'checked' : ''}" onclick="toggleTask(${task.id})">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><polyline points="20 6 9 17 4 12"/></svg>
+        </div>
+        <div class="task-content">
+          <div class="task-title">${escapeHtml(task.title)}</div>
+          <div class="task-meta">
+            <span class="task-category category-${task.category}">${task.category}</span>
+            ${task.dueDate ? `<span class="task-due ${dueStatus.class}">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+              ${dueStatus.text}
+            </span>` : ''}
+          </div>
+        </div>
+        <div class="task-actions">
+          <button class="delete" onclick="deleteTask(${task.id})">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
+          </button>
+        </div>
+      </li>
+    `;
+  }).join('');
+  
+  // ドラッグ&ドロップ設定
+  setupDragAndDrop();
+}
+
+function filterTasks(tasks, filter){
+  switch(filter){
+    case 'active': return tasks.filter(t => !t.completed);
+    case 'completed': return tasks.filter(t => t.completed);
+    case '仕事':
+    case '個人':
+    case '買い物':
+    case 'その他':
+      return tasks.filter(t => t.category === filter);
+    default: return tasks;
+  }
+}
+
+function getDueStatus(dueDate){
+  if(!dueDate) return {text: '', class: ''};
+  
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const due = new Date(dueDate);
+  due.setHours(0, 0, 0, 0);
+  
+  const diff = Math.floor((due - today) / (1000 * 60 * 60 * 24));
+  
+  if(diff < 0) return {text: '期限切れ', class: 'overdue'};
+  if(diff === 0) return {text: '今日', class: 'today'};
+  if(diff === 1) return {text: '明日', class: ''};
+  return {text: formatDate(dueDate), class: ''};
+}
+
+function formatDate(dateStr){
+  const date = new Date(dateStr);
+  return `${date.getMonth() + 1}/${date.getDate()}`;
+}
+
+function escapeHtml(str){
+  const div = document.createElement('div');
+  div.textContent = str;
+  return div.innerHTML;
+}
+
+function updateStats(){
+  const total = tasks.length;
+  const completed = tasks.filter(t => t.completed).length;
+  const remaining = total - completed;
+  
+  document.getElementById('stat-total').textContent = total;
+  document.getElementById('stat-completed').textContent = completed;
+  document.getElementById('stat-remaining').textContent = remaining;
+}
+
+/* ----- ドラッグ&ドロップ ----- */
+function setupDragAndDrop(){
+  const items = document.querySelectorAll('.task-item');
+  
+  items.forEach(item => {
+    item.addEventListener('dragstart', handleDragStart);
+    item.addEventListener('dragend', handleDragEnd);
+    item.addEventListener('dragover', handleDragOver);
+    item.addEventListener('drop', handleDrop);
+  });
+}
+
+function handleDragStart(e){
+  draggedItem = this;
+  this.classList.add('dragging');
+  e.dataTransfer.effectAllowed = 'move';
+}
+
+function handleDragEnd(e){
+  this.classList.remove('dragging');
+  draggedItem = null;
+}
+
+function handleDragOver(e){
+  e.preventDefault();
+  e.dataTransfer.dropEffect = 'move';
+}
+
+function handleDrop(e){
+  e.preventDefault();
+  if(draggedItem === this) return;
+  
+  const draggedId = parseInt(draggedItem.dataset.id);
+  const targetId = parseInt(this.dataset.id);
+  
+  const draggedIdx = tasks.findIndex(t => t.id === draggedId);
+  const targetIdx = tasks.findIndex(t => t.id === targetId);
+  
+  const [removed] = tasks.splice(draggedIdx, 1);
+  tasks.splice(targetIdx, 0, removed);
+  
+  saveData();
+  renderTasks();
+}
+
+/* ----- イベント ----- */
+function setupEventListeners(){
+  const input = document.getElementById('task-input');
+  const addBtn = document.getElementById('add-btn');
+  const categorySelect = document.getElementById('category-select');
+  const dueDateInput = document.getElementById('due-date');
+  
+  // タスク追加
+  function handleAdd(){
+    const title = input.value.trim();
+    if(!title) return;
+    
+    addTask(title, categorySelect.value, dueDateInput.value);
+    input.value = '';
+    dueDateInput.value = '';
+    input.focus();
+  }
+  
+  addBtn.addEventListener('click', handleAdd);
+  input.addEventListener('keydown', e => {
+    if(e.key === 'Enter') handleAdd();
+  });
+  
+  // フィルター
+  document.querySelectorAll('.filter-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      currentFilter = btn.dataset.filter;
+      renderTasks();
+    });
+  });
+  
+  // 設計ログトグル
+  document.getElementById('toggle-log').addEventListener('click', () => {
+    document.getElementById('design-log').classList.toggle('show');
+  });
+}
+
+/* ----- 起動 ----- */
+init();
+</script>
+</body>
+</html>
