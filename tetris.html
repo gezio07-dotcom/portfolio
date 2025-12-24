@@ -1,0 +1,905 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>Tetris — Portfolio Demo</title>
+<meta name="description" content="Canvas APIとJavaScriptで実装したテトリス。7-bag、ホールド、スコアランキング機能搭載。">
+<style>
+  :root{--bg:#071028;--panel:#0f1724;--accent:#14a0c1;--text:#e6eef8;--gold:#ffd700;--silver:#c0c0c0;--bronze:#cd7f32}
+  html,body{height:100%;margin:0;background:var(--bg);font-family:system-ui,-apple-system,"Noto Sans JP",Meiryo,sans-serif;color:var(--text);overflow-x:hidden}
+  
+  .back-link{
+    position:fixed;top:12px;left:12px;
+    color:var(--accent);font-size:0.8rem;font-weight:600;
+    text-decoration:none;z-index:10;
+    padding:8px 12px;background:rgba(15,23,36,0.9);border-radius:8px;
+    border:1px solid rgba(20,160,193,0.2);
+    display:flex;align-items:center;gap:6px;
+  }
+  .back-link svg{width:16px;height:16px}
+  .back-link:hover{background:var(--accent);color:var(--bg)}
+  
+  .info-link{
+    position:fixed;top:12px;right:12px;
+    color:var(--accent);font-size:0.75rem;font-weight:600;
+    text-decoration:none;z-index:10;
+    padding:8px 12px;background:rgba(15,23,36,0.9);border-radius:8px;
+    border:1px solid rgba(20,160,193,0.2);
+  }
+  .info-link:hover{background:var(--accent);color:var(--bg)}
+  
+  .wrap{max-width:520px;margin:0 auto;padding:60px 12px 18px;display:flex;flex-direction:column;align-items:center}
+  
+  .game-area{display:flex;gap:12px;align-items:flex-start}
+  
+  .side-panel{display:flex;flex-direction:column;gap:8px}
+  .side-box{
+    background:var(--panel);padding:8px;border-radius:8px;
+    border:1px solid rgba(20,160,193,0.15);
+    text-align:center;
+  }
+  .side-box-title{font-size:0.7rem;color:var(--accent);margin-bottom:4px;font-weight:600;letter-spacing:1px}
+  .side-box canvas{display:block;margin:0 auto;border-radius:4px;background:#071428}
+  
+  .canvas-box{background:var(--panel);padding:12px;border-radius:12px;box-shadow:0 12px 36px rgba(0,0,0,0.6);position:relative;overflow:hidden}
+  #tetris{display:block;border-radius:6px;background:#071428;touch-action:none}
+  
+  .line-effect{
+    position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);
+    font-size:2rem;font-weight:900;color:#fff;text-shadow:0 0 20px var(--accent),0 0 40px var(--accent);
+    opacity:0;pointer-events:none;z-index:20;
+  }
+  .line-effect.show{animation:linePopup 0.8s ease-out forwards}
+  @keyframes linePopup{
+    0%{opacity:0;transform:translate(-50%,-50%) scale(0.5)}
+    20%{opacity:1;transform:translate(-50%,-50%) scale(1.2)}
+    40%{transform:translate(-50%,-50%) scale(1)}
+    100%{opacity:0;transform:translate(-50%,-50%) scale(1) translateY(-30px)}
+  }
+  
+  .hud{margin-top:10px;color:#9fb7d8;font-size:14px;display:flex;justify-content:space-between;width:100%;align-items:center}
+  .hud-item{text-align:center}
+  .hud-label{font-size:0.65rem;opacity:0.7;letter-spacing:0.5px}
+  .hud-value{font-size:1.1rem;color:var(--accent);font-weight:700}
+  
+  .controls{margin-top:12px;width:100%;display:grid;grid-template-columns:repeat(6,1fr);gap:6px}
+  .btn-touch{padding:10px 8px;border-radius:8px;background:rgba(20,160,193,0.12);color:var(--text);border:1px solid rgba(20,160,193,0.18);font-weight:700;touch-action:manipulation;cursor:pointer;transition:all 0.2s;font-size:1rem}
+  .btn-touch:active{background:var(--accent);color:var(--bg)}
+  .btn-hold{font-size:0.7rem}
+  .btn-drop{font-size:0.65rem}
+  
+  .small{font-size:11px;color:#9fb7d8;margin-top:8px;text-align:center;line-height:1.6}
+  
+  /* ランキング */
+  .ranking-box{
+    background:var(--panel);padding:16px;border-radius:8px;
+    border:1px solid rgba(20,160,193,0.15);
+    margin-top:16px;width:100%;
+  }
+  .ranking-title{font-size:0.8rem;color:var(--accent);margin-bottom:12px;font-weight:700;letter-spacing:1px;display:flex;align-items:center;gap:8px}
+  .ranking-title svg{width:18px;height:18px}
+  .ranking-list{list-style:none;margin:0;padding:0}
+  .ranking-item{
+    display:flex;align-items:center;gap:12px;
+    padding:8px 0;border-bottom:1px solid rgba(255,255,255,0.05);
+    font-size:0.85rem;
+  }
+  .ranking-item:last-child{border-bottom:none}
+  .rank{width:24px;height:24px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:0.75rem}
+  .rank-1{background:var(--gold);color:#000}
+  .rank-2{background:var(--silver);color:#000}
+  .rank-3{background:var(--bronze);color:#fff}
+  .rank-other{background:rgba(255,255,255,0.1);color:var(--text)}
+  .ranking-score{flex:1;text-align:right;font-family:monospace;color:var(--accent)}
+  .ranking-date{font-size:0.7rem;color:#9fb7d8;opacity:0.7}
+  .ranking-empty{color:#9fb7d8;font-size:0.85rem;text-align:center;padding:20px 0;opacity:0.7}
+  
+  /* ゲームオーバーモーダル */
+  .modal{
+    position:fixed;top:0;left:0;right:0;bottom:0;
+    background:rgba(7,16,40,0.95);z-index:100;
+    display:none;align-items:center;justify-content:center;padding:20px;
+  }
+  .modal.show{display:flex}
+  .modal-content{
+    background:var(--panel);padding:32px;border-radius:12px;
+    text-align:center;max-width:320px;width:100%;
+    border:1px solid rgba(20,160,193,0.2);
+  }
+  .modal-title{font-size:1.4rem;margin-bottom:8px;color:var(--accent)}
+  .modal-score{font-size:2.5rem;font-weight:700;color:#fff;margin:16px 0}
+  .modal-rank{font-size:0.9rem;color:var(--gold);margin-bottom:20px}
+  .modal-btn{
+    padding:12px 24px;border-radius:8px;font-weight:700;cursor:pointer;
+    border:none;font-size:1rem;transition:all 0.2s;
+  }
+  .modal-btn.primary{background:var(--accent);color:var(--bg);margin-right:8px}
+  .modal-btn.primary:hover{background:#0d8aa8}
+  .modal-btn.secondary{background:transparent;border:1px solid var(--accent);color:var(--accent)}
+  .modal-btn.secondary:hover{background:var(--accent);color:var(--bg)}
+  
+  /* 設計ログ */
+  .design-log{
+    background:var(--panel);padding:20px;border-radius:8px;
+    border:1px solid rgba(20,160,193,0.15);
+    margin-top:16px;width:100%;display:none;
+  }
+  .design-log.show{display:block}
+  .design-log h3{font-size:0.85rem;color:var(--accent);margin:0 0 12px 0;letter-spacing:1px}
+  .design-log-section{margin-bottom:16px}
+  .design-log-section:last-child{margin-bottom:0}
+  .design-log-title{font-size:0.75rem;color:#9fb7d8;margin-bottom:6px;font-weight:600}
+  .design-log-content{font-size:0.8rem;color:var(--text);line-height:1.7}
+  .design-log-content ul{margin:8px 0 0 0;padding-left:16px}
+  .design-log-content li{margin-bottom:4px}
+  
+  /* パーティクル */
+  .particle{
+    position:absolute;width:8px;height:8px;border-radius:50%;
+    pointer-events:none;z-index:15;
+  }
+  @keyframes particleBurst{
+    0%{opacity:1;transform:translate(0,0) scale(1)}
+    100%{opacity:0;transform:translate(var(--dx),var(--dy)) scale(0)}
+  }
+</style>
+</head>
+<body>
+<a href="index.html" class="back-link">
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 12H5M12 19l-7-7 7-7"/></svg>
+  戻る
+</a>
+<a href="#" class="info-link" id="toggle-log">設計ログ</a>
+
+<div class="wrap">
+  <h2 style="margin:0 0 8px 0;font-size:1.2rem;letter-spacing:1px">TETRIS</h2>
+  
+  <div class="game-area">
+    <div class="side-panel">
+      <div class="side-box">
+        <div class="side-box-title">HOLD</div>
+        <canvas id="hold-canvas" width="80" height="60"></canvas>
+      </div>
+    </div>
+    
+    <div class="canvas-box" role="application" aria-label="テトリスゲーム">
+      <canvas id="tetris" aria-label="テトリスのゲーム画面"></canvas>
+      <div class="line-effect" id="line-effect"></div>
+    </div>
+    
+    <div class="side-panel">
+      <div class="side-box">
+        <div class="side-box-title">NEXT</div>
+        <canvas id="next-canvas" width="80" height="180"></canvas>
+      </div>
+    </div>
+  </div>
+
+  <div class="hud">
+    <div class="hud-item"><div class="hud-label">SCORE</div><div class="hud-value" id="score">0</div></div>
+    <div class="hud-item"><div class="hud-label">LEVEL</div><div class="hud-value" id="level">1</div></div>
+    <div class="hud-item"><div class="hud-label">LINES</div><div class="hud-value" id="lines">0</div></div>
+  </div>
+
+  <div class="controls" role="group" aria-label="タッチコントロール">
+    <button class="btn-touch btn-hold" id="hold" aria-label="ホールド">HOLD</button>
+    <button class="btn-touch" id="left" aria-label="左に移動">◀︎</button>
+    <button class="btn-touch" id="down" aria-label="下に移動">▼</button>
+    <button class="btn-touch" id="rotate" aria-label="回転">⟳</button>
+    <button class="btn-touch" id="right" aria-label="右に移動">▶︎</button>
+    <button class="btn-touch btn-drop" id="harddrop" aria-label="ハードドロップ">DROP</button>
+  </div>
+
+  <div class="small">HOLD: C / 移動: ← → / ソフトドロップ: ↓ / ハードドロップ: ↑ or Space / 回転: Z / 一時停止: P</div>
+
+  <!-- ランキング -->
+  <div class="ranking-box">
+    <div class="ranking-title">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 9H4.5a2.5 2.5 0 0 1 0-5H6"/><path d="M18 9h1.5a2.5 2.5 0 0 0 0-5H18"/><path d="M4 22h16"/><path d="M10 14.66V17c0 .55-.47.98-.97 1.21C7.85 18.75 7 20.24 7 22"/><path d="M14 14.66V17c0 .55.47.98.97 1.21C16.15 18.75 17 20.24 17 22"/><path d="M18 2H6v7a6 6 0 0 0 12 0V2Z"/></svg>
+      HIGH SCORES
+    </div>
+    <ul class="ranking-list" id="ranking-list">
+      <li class="ranking-empty">まだ記録がありません</li>
+    </ul>
+  </div>
+
+  <!-- 設計ログ -->
+  <div class="design-log" id="design-log">
+    <h3>DESIGN LOG</h3>
+    
+    <div class="design-log-section">
+      <div class="design-log-title">目的</div>
+      <div class="design-log-content">
+        Canvas APIとJavaScriptの実装力を示すデモ。
+        「触って気持ちいい」ゲーム体験を通じて、UI/UXへの配慮を伝える。
+      </div>
+    </div>
+    
+    <div class="design-log-section">
+      <div class="design-log-title">制約</div>
+      <div class="design-log-content">
+        <ul>
+          <li>外部ライブラリ不使用（Vanilla JS のみ）</li>
+          <li>モバイルファースト（タッチ操作対応必須）</li>
+          <li>単一HTMLファイルで完結</li>
+          <li>開発期間: 約8時間</li>
+        </ul>
+      </div>
+    </div>
+    
+    <div class="design-log-section">
+      <div class="design-log-title">設計方針</div>
+      <div class="design-log-content">
+        <ul>
+          <li><strong>7-bag システム</strong>: ピースの偏りを防ぎ、公平なゲーム体験を提供</li>
+          <li><strong>ホールド機能</strong>: 戦略性を高め、上級者も楽しめる設計</li>
+          <li><strong>ハードドロップ</strong>: ↑キーで即座に落下、スピーディなプレイを実現</li>
+          <li><strong>残像エフェクト</strong>: 落下中のピースに残像を付けて動きを強調</li>
+          <li><strong>DPR対応</strong>: Retina等の高解像度ディスプレイでもシャープな描画</li>
+          <li><strong>パーティクル演出</strong>: ライン消去時の達成感を視覚的にフィードバック</li>
+          <li><strong>ローカルランキング</strong>: localStorage で永続化、再プレイ動機を創出</li>
+        </ul>
+      </div>
+    </div>
+    
+    <div class="design-log-section">
+      <div class="design-log-title">次に改善するなら</div>
+      <div class="design-log-content">
+        <ul>
+          <li>ゴーストピース（落下位置のプレビュー）の実装</li>
+          <li>Tスピン判定とボーナススコア</li>
+          <li>サウンドエフェクトの追加</li>
+          <li>オンラインランキング対応</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ゲームオーバーモーダル -->
+<div class="modal" id="gameover-modal">
+  <div class="modal-content">
+    <div class="modal-title">GAME OVER</div>
+    <div class="modal-score" id="final-score">0</div>
+    <div class="modal-rank" id="final-rank"></div>
+    <button class="modal-btn primary" id="retry-btn">もう一度</button>
+    <button class="modal-btn secondary" id="close-modal-btn">閉じる</button>
+  </div>
+</div>
+
+<script>
+/* ----- 設定 ----- */
+const cols = 10, rows = 20;
+const scale = 22;
+const canvas = document.getElementById('tetris');
+const holdCanvas = document.getElementById('hold-canvas');
+const nextCanvas = document.getElementById('next-canvas');
+const canvasBox = document.querySelector('.canvas-box');
+
+/* DPR対応 */
+function setupCanvas(cvs, w, h, s){
+  const dpr = Math.max(1, window.devicePixelRatio || 1);
+  cvs.style.width = w + 'px';
+  cvs.style.height = h + 'px';
+  cvs.width = w * dpr;
+  cvs.height = h * dpr;
+  const ctx = cvs.getContext('2d');
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  ctx.imageSmoothingEnabled = false;
+  return ctx;
+}
+
+let ctx = setupCanvas(canvas, cols * scale, rows * scale, scale);
+let holdCtx = setupCanvas(holdCanvas, 80, 60, 16);
+let nextCtx = setupCanvas(nextCanvas, 80, 180, 16);
+
+window.addEventListener('resize', () => {
+  ctx = setupCanvas(canvas, cols * scale, rows * scale, scale);
+  holdCtx = setupCanvas(holdCanvas, 80, 60, 16);
+  nextCtx = setupCanvas(nextCanvas, 80, 180, 16);
+  draw();
+});
+
+/* ----- ピース定義 ----- */
+const PIECES = {
+  I: { shape: [[0,0,0,0],[1,1,1,1],[0,0,0,0],[0,0,0,0]], color: '#00f0f0' },
+  J: { shape: [[2,0,0],[2,2,2],[0,0,0]], color: '#0000f0' },
+  L: { shape: [[0,0,3],[3,3,3],[0,0,0]], color: '#f0a000' },
+  O: { shape: [[4,4],[4,4]], color: '#f0f000' },
+  S: { shape: [[0,5,5],[5,5,0],[0,0,0]], color: '#00f000' },
+  T: { shape: [[0,6,0],[6,6,6],[0,0,0]], color: '#a000f0' },
+  Z: { shape: [[7,7,0],[0,7,7],[0,0,0]], color: '#f00000' }
+};
+const PIECE_TYPES = ['I','J','L','O','S','T','Z'];
+const COLORS = [null,'#00f0f0','#0000f0','#f0a000','#f0f000','#00f000','#a000f0','#f00000'];
+
+/* ----- 7-bag システム ----- */
+let bag = [];
+function shuffleBag(){
+  bag = [...PIECE_TYPES];
+  for(let i = bag.length - 1; i > 0; i--){
+    const j = Math.floor(Math.random() * (i + 1));
+    [bag[i], bag[j]] = [bag[j], bag[i]];
+  }
+}
+function getNextPiece(){
+  if(bag.length === 0) shuffleBag();
+  return bag.pop();
+}
+
+/* ----- マップ・プレイヤー ----- */
+function createMatrix(w,h){ const m=[]; while(h--) m.push(new Array(w).fill(0)); return m; }
+const arena = createMatrix(cols, rows);
+
+let player = {pos:{x:0,y:0}, matrix: null, type: null};
+let holdPiece = null;
+let canHold = true;
+let nextQueue = [];
+let score = 0, level = 1, totalLines = 0;
+let gameOver = false;
+let gamePaused = false;
+
+/* 残像エフェクト用 */
+let trailHistory = [];
+const MAX_TRAIL = 4;
+
+/* NEXTキューを初期化 */
+function initNextQueue(){
+  nextQueue = [];
+  for(let i = 0; i < 3; i++){
+    nextQueue.push(getNextPiece());
+  }
+}
+
+function createPiece(type){
+  return JSON.parse(JSON.stringify(PIECES[type].shape));
+}
+
+/* ----- ランキング ----- */
+const RANKING_KEY = 'tetris_ranking';
+const MAX_RANKINGS = 5;
+
+function getRankings(){
+  try {
+    return JSON.parse(localStorage.getItem(RANKING_KEY)) || [];
+  } catch(e) {
+    return [];
+  }
+}
+
+function saveRanking(newScore){
+  const rankings = getRankings();
+  const entry = {
+    score: newScore,
+    date: new Date().toLocaleDateString('ja-JP', {month:'numeric', day:'numeric'}),
+    timestamp: Date.now()
+  };
+  rankings.push(entry);
+  rankings.sort((a, b) => b.score - a.score);
+  const trimmed = rankings.slice(0, MAX_RANKINGS);
+  localStorage.setItem(RANKING_KEY, JSON.stringify(trimmed));
+  
+  // ランクを返す
+  const rank = trimmed.findIndex(r => r.timestamp === entry.timestamp) + 1;
+  return rank <= MAX_RANKINGS ? rank : 0;
+}
+
+function renderRankings(){
+  const rankings = getRankings();
+  const list = document.getElementById('ranking-list');
+  
+  if(rankings.length === 0){
+    list.innerHTML = '<li class="ranking-empty">まだ記録がありません</li>';
+    return;
+  }
+  
+  list.innerHTML = rankings.map((r, i) => {
+    const rankClass = i === 0 ? 'rank-1' : i === 1 ? 'rank-2' : i === 2 ? 'rank-3' : 'rank-other';
+    return `
+      <li class="ranking-item">
+        <span class="rank ${rankClass}">${i + 1}</span>
+        <span class="ranking-score">${r.score.toLocaleString()}</span>
+        <span class="ranking-date">${r.date}</span>
+      </li>
+    `;
+  }).join('');
+}
+
+/* ----- 描画 ----- */
+function draw(){
+  // メイン盤面
+  ctx.fillStyle = '#071428';
+  ctx.fillRect(0, 0, cols * scale, rows * scale);
+  
+  // グリッド線
+  ctx.strokeStyle = 'rgba(20,160,193,0.08)';
+  for(let y = 0; y < rows; y++){
+    for(let x = 0; x < cols; x++){
+      ctx.strokeRect(x * scale, y * scale, scale, scale);
+    }
+  }
+  
+  // 固定ブロック
+  for(let y = 0; y < rows; y++){
+    for(let x = 0; x < cols; x++){
+      if(arena[y][x]){
+        drawBlock(ctx, x, y, COLORS[arena[y][x]], scale, 1);
+      }
+    }
+  }
+  
+  // 残像を描画
+  if(!gameOver){
+    for(let i = 0; i < trailHistory.length; i++){
+      const trail = trailHistory[i];
+      const alpha = (i + 1) / (trailHistory.length + 2) * 0.4;
+      drawMatrixWithAlpha(ctx, trail.matrix, trail.pos, scale, alpha);
+    }
+  }
+  
+  // ゴーストピース（落下位置プレビュー）
+  if(!gameOver && player.matrix){
+    let ghostY = player.pos.y;
+    while(!collideAt(arena, player.matrix, player.pos.x, ghostY + 1)){
+      ghostY++;
+    }
+    if(ghostY !== player.pos.y){
+      drawGhost(ctx, player.matrix, {x: player.pos.x, y: ghostY}, scale);
+    }
+  }
+  
+  // 現在のピース
+  if(!gameOver) drawMatrix(ctx, player.matrix, player.pos, scale);
+  
+  // HOLD表示
+  drawSidePanel(holdCtx, holdPiece, 80, 60);
+  
+  // NEXT表示
+  drawNextQueue();
+}
+
+function drawBlock(context, x, y, color, s, alpha = 1){
+  context.globalAlpha = alpha;
+  context.fillStyle = color;
+  context.fillRect(x * s + 1, y * s + 1, s - 2, s - 2);
+  // ハイライト
+  context.fillStyle = `rgba(255,255,255,${0.3 * alpha})`;
+  context.fillRect(x * s + 1, y * s + 1, s - 2, 3);
+  context.fillRect(x * s + 1, y * s + 1, 3, s - 2);
+  // シャドウ
+  context.fillStyle = `rgba(0,0,0,${0.3 * alpha})`;
+  context.fillRect(x * s + 1, y * s + s - 4, s - 2, 3);
+  context.fillRect(x * s + s - 4, y * s + 1, 3, s - 2);
+  context.globalAlpha = 1;
+}
+
+function drawMatrix(context, matrix, offset, s){
+  if(!matrix) return;
+  const type = player.type;
+  const color = type ? PIECES[type].color : '#fff';
+  for(let y = 0; y < matrix.length; y++){
+    for(let x = 0; x < matrix[y].length; x++){
+      if(matrix[y][x]){
+        drawBlock(context, x + offset.x, y + offset.y, color, s, 1);
+      }
+    }
+  }
+}
+
+function drawMatrixWithAlpha(context, matrix, offset, s, alpha){
+  if(!matrix) return;
+  const type = player.type;
+  const color = type ? PIECES[type].color : '#fff';
+  for(let y = 0; y < matrix.length; y++){
+    for(let x = 0; x < matrix[y].length; x++){
+      if(matrix[y][x]){
+        drawBlock(context, x + offset.x, y + offset.y, color, s, alpha);
+      }
+    }
+  }
+}
+
+function drawGhost(context, matrix, offset, s){
+  if(!matrix) return;
+  const type = player.type;
+  const color = type ? PIECES[type].color : '#fff';
+  context.globalAlpha = 0.2;
+  for(let y = 0; y < matrix.length; y++){
+    for(let x = 0; x < matrix[y].length; x++){
+      if(matrix[y][x]){
+        context.fillStyle = color;
+        context.fillRect((x + offset.x) * s + 1, (y + offset.y) * s + 1, s - 2, s - 2);
+      }
+    }
+  }
+  context.globalAlpha = 1;
+}
+
+function drawSidePanel(context, pieceType, w, h){
+  context.fillStyle = '#071428';
+  context.fillRect(0, 0, w, h);
+  if(!pieceType) return;
+  
+  const shape = PIECES[pieceType].shape;
+  const color = PIECES[pieceType].color;
+  const s = 16;
+  const offsetX = (w - shape[0].length * s) / 2 / s;
+  const offsetY = (h - shape.length * s) / 2 / s;
+  
+  for(let y = 0; y < shape.length; y++){
+    for(let x = 0; x < shape[y].length; x++){
+      if(shape[y][x]){
+        drawBlock(context, x + offsetX, y + offsetY, color, s, 1);
+      }
+    }
+  }
+}
+
+function drawNextQueue(){
+  nextCtx.fillStyle = '#071428';
+  nextCtx.fillRect(0, 0, 80, 180);
+  
+  const s = 14;
+  for(let i = 0; i < nextQueue.length; i++){
+    const type = nextQueue[i];
+    const shape = PIECES[type].shape;
+    const color = PIECES[type].color;
+    const offsetX = (80 - shape[0].length * s) / 2;
+    const offsetY = 10 + i * 58;
+    
+    for(let y = 0; y < shape.length; y++){
+      for(let x = 0; x < shape[y].length; x++){
+        if(shape[y][x]){
+          nextCtx.fillStyle = color;
+          nextCtx.fillRect(offsetX + x * s + 1, offsetY + y * s + 1, s - 2, s - 2);
+        }
+      }
+    }
+  }
+}
+
+/* ----- 衝突判定 ----- */
+function collide(arena, player){
+  const m = player.matrix;
+  const o = player.pos;
+  for(let y = 0; y < m.length; y++){
+    for(let x = 0; x < m[y].length; x++){
+      if(m[y][x] && (arena[y + o.y] && arena[y + o.y][x + o.x]) !== 0){
+        return true;
+      }
+    }
+  }
+  return false;
+}
+
+function collideAt(arena, matrix, px, py){
+  for(let y = 0; y < matrix.length; y++){
+    for(let x = 0; x < matrix[y].length; x++){
+      if(matrix[y][x]){
+        if(py + y >= rows) return true;
+        if(px + x < 0 || px + x >= cols) return true;
+        if(arena[py + y] && arena[py + y][px + x] !== 0) return true;
+      }
+    }
+  }
+  return false;
+}
+
+function merge(arena, player){
+  player.matrix.forEach((row, y) => {
+    row.forEach((value, x) => {
+      if(value){
+        arena[y + player.pos.y][x + player.pos.x] = value;
+      }
+    });
+  });
+}
+
+/* ----- ライン消去 ----- */
+function sweep(){
+  let linesCleared = 0;
+  const clearedRows = [];
+  
+  outer: for(let y = arena.length - 1; y >= 0; y--){
+    for(let x = 0; x < arena[y].length; x++){
+      if(arena[y][x] === 0) continue outer;
+    }
+    clearedRows.push(y);
+    const row = arena.splice(y, 1)[0].fill(0);
+    arena.unshift(row);
+    y++;
+    linesCleared++;
+  }
+  
+  if(linesCleared > 0){
+    // パーティクル演出
+    clearedRows.forEach(rowY => createParticles(rowY));
+    
+    // スコア計算
+    const points = [0, 100, 300, 500, 800];
+    score += points[linesCleared] * level;
+    totalLines += linesCleared;
+    level = Math.floor(totalLines / 10) + 1;
+    
+    // ライン消去演出
+    showLineEffect(linesCleared);
+    
+    updateHUD();
+  }
+}
+
+function showLineEffect(lines){
+  const effect = document.getElementById('line-effect');
+  const texts = ['', '1 LINE!', '2 LINES!', 'TRIPLE!', 'TETRIS!'];
+  effect.textContent = texts[lines] || `${lines} LINES!`;
+  effect.classList.remove('show');
+  void effect.offsetWidth;
+  effect.classList.add('show');
+}
+
+function createParticles(rowY){
+  const rect = canvas.getBoundingClientRect();
+  const colors = ['#00f0f0','#f0a000','#f0f000','#00f000','#a000f0','#f00000'];
+  
+  for(let i = 0; i < 20; i++){
+    const particle = document.createElement('div');
+    particle.className = 'particle';
+    particle.style.background = colors[Math.floor(Math.random() * colors.length)];
+    particle.style.left = (rect.left + Math.random() * rect.width) + 'px';
+    particle.style.top = (rect.top + rowY * scale + 12) + 'px';
+    particle.style.setProperty('--dx', (Math.random() - 0.5) * 200 + 'px');
+    particle.style.setProperty('--dy', (Math.random() - 0.5) * 200 + 'px');
+    particle.style.animation = 'particleBurst 0.6s ease-out forwards';
+    document.body.appendChild(particle);
+    setTimeout(() => particle.remove(), 600);
+  }
+}
+
+function updateHUD(){
+  document.getElementById('score').textContent = score.toLocaleString();
+  document.getElementById('level').textContent = level;
+  document.getElementById('lines').textContent = totalLines;
+}
+
+/* ----- プレイヤー操作 ----- */
+function playerReset(){
+  const type = nextQueue.shift();
+  nextQueue.push(getNextPiece());
+  
+  player.type = type;
+  player.matrix = createPiece(type);
+  player.pos.y = 0;
+  player.pos.x = Math.floor((cols - player.matrix[0].length) / 2);
+  canHold = true;
+  trailHistory = [];
+  
+  if(collide(arena, player)){
+    // ゲームオーバー
+    gameOver = true;
+    showGameOver();
+  }
+}
+
+function playerMove(dir){
+  if(gameOver || gamePaused) return;
+  player.pos.x += dir;
+  if(collide(arena, player)) player.pos.x -= dir;
+}
+
+function playerDrop(){
+  if(gameOver || gamePaused) return;
+  
+  // 残像を記録
+  addTrail();
+  
+  player.pos.y++;
+  if(collide(arena, player)){
+    player.pos.y--;
+    merge(arena, player);
+    sweep();
+    playerReset();
+  }
+  dropCounter = 0;
+}
+
+function playerHardDrop(){
+  if(gameOver || gamePaused) return;
+  
+  // ハードドロップ時は残像をクリア
+  trailHistory = [];
+  
+  while(!collide(arena, player)){
+    player.pos.y++;
+  }
+  player.pos.y--;
+  merge(arena, player);
+  sweep();
+  playerReset();
+  dropCounter = 0;
+}
+
+function addTrail(){
+  if(player.matrix){
+    trailHistory.push({
+      matrix: JSON.parse(JSON.stringify(player.matrix)),
+      pos: {x: player.pos.x, y: player.pos.y}
+    });
+    if(trailHistory.length > MAX_TRAIL){
+      trailHistory.shift();
+    }
+  }
+}
+
+function playerRotate(dir){
+  if(gameOver || gamePaused) return;
+  const pos = player.pos.x;
+  let offset = 1;
+  rotate(player.matrix, dir);
+  while(collide(arena, player)){
+    player.pos.x += offset;
+    offset = -(offset + (offset > 0 ? 1 : -1));
+    if(offset > player.matrix[0].length){
+      rotate(player.matrix, -dir);
+      player.pos.x = pos;
+      return;
+    }
+  }
+}
+
+function rotate(matrix, dir){
+  for(let y = 0; y < matrix.length; y++){
+    for(let x = 0; x < y; x++){
+      [matrix[x][y], matrix[y][x]] = [matrix[y][x], matrix[x][y]];
+    }
+  }
+  if(dir > 0) matrix.forEach(row => row.reverse());
+  else matrix.reverse();
+}
+
+function playerHold(){
+  if(gameOver || gamePaused || !canHold) return;
+  canHold = false;
+  trailHistory = [];
+  
+  if(holdPiece === null){
+    holdPiece = player.type;
+    playerReset();
+  } else {
+    const temp = holdPiece;
+    holdPiece = player.type;
+    player.type = temp;
+    player.matrix = createPiece(temp);
+    player.pos.y = 0;
+    player.pos.x = Math.floor((cols - player.matrix[0].length) / 2);
+  }
+}
+
+/* ----- ゲームオーバー ----- */
+function showGameOver(){
+  const rank = saveRanking(score);
+  renderRankings();
+  
+  document.getElementById('final-score').textContent = score.toLocaleString();
+  
+  const rankText = rank > 0 ? `🏆 ${rank}位にランクイン！` : '';
+  document.getElementById('final-rank').textContent = rankText;
+  
+  document.getElementById('gameover-modal').classList.add('show');
+}
+
+function resetGame(){
+  // 盤面クリア
+  for(let y = 0; y < rows; y++){
+    for(let x = 0; x < cols; x++){
+      arena[y][x] = 0;
+    }
+  }
+  
+  score = 0;
+  level = 1;
+  totalLines = 0;
+  holdPiece = null;
+  canHold = true;
+  gameOver = false;
+  gamePaused = false;
+  trailHistory = [];
+  
+  shuffleBag();
+  initNextQueue();
+  playerReset();
+  updateHUD();
+  
+  document.getElementById('gameover-modal').classList.remove('show');
+}
+
+/* ----- ゲームループ ----- */
+let dropCounter = 0;
+let dropInterval = 1000;
+let lastTime = 0;
+
+function update(time = 0){
+  if(gameOver){
+    draw();
+    return;
+  }
+  
+  if(gamePaused){
+    lastTime = time;
+    requestAnimationFrame(update);
+    return;
+  }
+  
+  const deltaTime = time - lastTime;
+  lastTime = time;
+  dropCounter += deltaTime;
+  
+  const currentInterval = Math.max(100, dropInterval - (level - 1) * 50);
+  
+  if(dropCounter > currentInterval){
+    addTrail();
+    player.pos.y++;
+    if(collide(arena, player)){
+      player.pos.y--;
+      merge(arena, player);
+      sweep();
+      playerReset();
+    }
+    dropCounter = 0;
+  }
+  
+  draw();
+  requestAnimationFrame(update);
+}
+
+/* ----- 入力 ----- */
+document.addEventListener('keydown', e => {
+  if(e.key === 'ArrowLeft') playerMove(-1);
+  if(e.key === 'ArrowRight') playerMove(1);
+  if(e.key === 'ArrowDown') playerDrop();
+  if(e.key === 'ArrowUp') { e.preventDefault(); playerHardDrop(); }
+  if(e.key === ' ') { e.preventDefault(); playerHardDrop(); }
+  if(e.key.toLowerCase() === 'z') playerRotate(1);
+  if(e.key.toLowerCase() === 'x') playerRotate(-1);
+  if(e.key.toLowerCase() === 'c') playerHold();
+  if(e.key.toLowerCase() === 'p') gamePaused = !gamePaused;
+});
+
+/* タッチ & クリック */
+['left','right','down','rotate','hold','harddrop'].forEach(id => {
+  const el = document.getElementById(id);
+  const action = {
+    left: () => playerMove(-1),
+    right: () => playerMove(1),
+    down: () => playerDrop(),
+    rotate: () => playerRotate(1),
+    hold: () => playerHold(),
+    harddrop: () => playerHardDrop()
+  }[id];
+  
+  el.addEventListener('touchstart', e => { e.preventDefault(); action(); });
+  el.addEventListener('click', action);
+});
+
+/* モーダル */
+document.getElementById('retry-btn').addEventListener('click', resetGame);
+document.getElementById('close-modal-btn').addEventListener('click', () => {
+  document.getElementById('gameover-modal').classList.remove('show');
+});
+
+/* 設計ログトグル */
+document.getElementById('toggle-log').addEventListener('click', e => {
+  e.preventDefault();
+  document.getElementById('design-log').classList.toggle('show');
+});
+
+/* ----- 初期化 ----- */
+shuffleBag();
+initNextQueue();
+playerReset();
+updateHUD();
+renderRankings();
+requestAnimationFrame(update);
+</script>
+</body>
+</html>
